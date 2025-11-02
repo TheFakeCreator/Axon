@@ -12,11 +12,11 @@ import type {
   ContextRetrievalResult,
   ScoredContext,
   ContextRetrievalConfig,
-} from '../types';
-import type { EmbeddingService } from '../services/embedding.service';
-import type { VectorStoreAdapter, ContextSearchResult } from '../services/vector-store.adapter';
+} from '../types.js';
+import type { EmbeddingService } from '../services/embedding.service.js';
+import type { VectorStoreAdapter, ContextSearchResult } from '../services/vector-store.adapter.js';
 import type { MongoDBConnection } from '@axon/shared';
-import { DEFAULT_RETRIEVAL_CONFIG } from '../config';
+import { DEFAULT_RETRIEVAL_CONFIG } from '../config.js';
 
 export class ContextRetriever {
   private embeddingService: EmbeddingService;

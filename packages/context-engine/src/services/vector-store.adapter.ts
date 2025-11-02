@@ -8,8 +8,8 @@
 import { QdrantVectorStore, logger } from '@axon/shared';
 import type { IContext, ContextTier } from '@axon/shared';
 import type { VectorPoint } from '@axon/shared';
-import type { VectorSearchFilter } from '../types';
-import { VECTOR_SEARCH_LIMIT } from '../config';
+import type { VectorSearchFilter } from '../types.js';
+import { VECTOR_SEARCH_LIMIT } from '../config.js';
 
 export interface ContextSearchResult {
   context: Partial<IContext>;

@@ -6,8 +6,8 @@
  */
 
 import { EmbeddingService as BaseEmbeddingService, RedisConnection, logger } from '@axon/shared';
-import type { BatchEmbeddingRequest, BatchEmbeddingResult } from '../types';
-import { EMBEDDING_CACHE_TTL, MAX_EMBEDDING_BATCH_SIZE } from '../config';
+import type { BatchEmbeddingRequest, BatchEmbeddingResult } from '../types.js';
+import { EMBEDDING_CACHE_TTL, MAX_EMBEDDING_BATCH_SIZE } from '../config.js';
 import crypto from 'crypto';
 import type { Redis } from 'ioredis';
 

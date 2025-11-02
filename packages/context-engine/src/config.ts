@@ -8,7 +8,7 @@ import type {
   ContextRetrievalConfig,
   ContextEvolutionConfig,
   ReRankingWeights,
-} from './types';
+} from './types.js';
 
 /**
  * Default re-ranking weights based on research paper specifications
