@@ -3,7 +3,6 @@
  * Uses local models for privacy and cost efficiency
  */
 
-import { pipeline } from '@xenova/transformers';
 import { logger } from './logger';
 import { DatabaseError } from './errors';
 
@@ -67,6 +66,8 @@ export class EmbeddingService {
         logger.info('Initializing embedding model', { model: this.model });
         const startTime = Date.now();
 
+        // Dynamic import for ESM-only package
+        const { pipeline } = await import('@xenova/transformers');
         this.pipeline = await pipeline('feature-extraction', this.model);
 
         const duration = Date.now() - startTime;

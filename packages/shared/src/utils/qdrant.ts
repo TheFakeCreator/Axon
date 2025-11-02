@@ -2,9 +2,11 @@
  * Qdrant vector database connection and operations
  */
 
-import { QdrantClient } from '@qdrant/js-client-rest';
 import { logger } from './logger';
 import { DatabaseError } from './errors';
+
+// Type for QdrantClient (will be imported dynamically)
+type QdrantClient = any;
 
 /**
  * Vector search result
@@ -39,19 +41,57 @@ export interface QdrantConfig {
  * Qdrant vector store manager
  */
 export class QdrantVectorStore {
-  private client: QdrantClient;
+  private client: QdrantClient | null = null;
   private collectionName: string;
   private vectorSize: number;
   private distance: 'Cosine' | 'Euclid' | 'Dot';
+  private config: QdrantConfig;
+  private initPromise: Promise<void> | null = null;
 
   constructor(config: QdrantConfig) {
-    this.client = new QdrantClient({
-      url: config.url,
-      apiKey: config.apiKey,
-    });
+    this.config = config;
     this.collectionName = config.collectionName;
     this.vectorSize = config.vectorSize;
     this.distance = config.distance || 'Cosine';
+  }
+
+  /**
+   * Initialize Qdrant client (lazy initialization with dynamic import)
+   */
+  private async initClient(): Promise<void> {
+    if (this.client) {
+      return;
+    }
+
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = (async () => {
+      try {
+        const { QdrantClient } = await import('@qdrant/js-client-rest');
+        this.client = new QdrantClient({
+          url: this.config.url,
+          apiKey: this.config.apiKey,
+        });
+        logger.info('Qdrant client initialized', { url: this.config.url });
+      } catch (error) {
+        this.initPromise = null;
+        throw new DatabaseError('Failed to initialize Qdrant client', { error });
+      }
+    })();
+
+    return this.initPromise;
+  }
+
+  /**
+   * Ensure client is initialized before use
+   */
+  private async ensureClient(): Promise<void> {
+    await this.initClient();
+    if (!this.client) {
+      throw new DatabaseError('Qdrant client not initialized');
+    }
   }
 
   /**
@@ -59,15 +99,17 @@ export class QdrantVectorStore {
    */
   async initializeCollection(): Promise<void> {
     try {
+      await this.ensureClient();
+
       logger.info('Initializing Qdrant collection', { collection: this.collectionName });
 
       // Check if collection exists
-      const collections = await this.client.getCollections();
-      const exists = collections.collections.some(c => c.name === this.collectionName);
+      const collections = await this.client!.getCollections();
+      const exists = collections.collections.some((c: any) => c.name === this.collectionName);
 
       if (!exists) {
         // Create collection
-        await this.client.createCollection(this.collectionName, {
+        await this.client!.createCollection(this.collectionName, {
           vectors: {
             size: this.vectorSize,
             distance: this.distance,
@@ -88,7 +130,9 @@ export class QdrantVectorStore {
    */
   async upsert(point: VectorPoint): Promise<void> {
     try {
-      await this.client.upsert(this.collectionName, {
+      await this.ensureClient();
+
+      await this.client!.upsert(this.collectionName, {
         wait: true,
         points: [
           {
@@ -110,7 +154,9 @@ export class QdrantVectorStore {
    */
   async upsertBatch(points: VectorPoint[]): Promise<void> {
     try {
-      await this.client.upsert(this.collectionName, {
+      await this.ensureClient();
+
+      await this.client!.upsert(this.collectionName, {
         wait: true,
         points: points.map(p => ({
           id: p.id,
@@ -135,9 +181,11 @@ export class QdrantVectorStore {
     scoreThreshold?: number
   ): Promise<VectorSearchResult[]> {
     try {
+      await this.ensureClient();
+
       logger.debug('Searching vectors in Qdrant', { limit, filter, scoreThreshold });
 
-      const searchResult = await this.client.search(this.collectionName, {
+      const searchResult = await this.client!.search(this.collectionName, {
         vector,
         limit,
         filter,
@@ -145,7 +193,7 @@ export class QdrantVectorStore {
         with_payload: true,
       });
 
-      const results: VectorSearchResult[] = searchResult.map(result => ({
+      const results: VectorSearchResult[] = searchResult.map((result: any) => ({
         id: String(result.id),
         score: result.score,
         payload: result.payload || {},
@@ -164,7 +212,8 @@ export class QdrantVectorStore {
    */
   async delete(id: string): Promise<void> {
     try {
-      await this.client.delete(this.collectionName, {
+      await this.ensureClient();
+      await this.client!.delete(this.collectionName, {
         wait: true,
         points: [id],
       });
@@ -180,7 +229,8 @@ export class QdrantVectorStore {
    */
   async deleteBatch(ids: string[]): Promise<void> {
     try {
-      await this.client.delete(this.collectionName, {
+      await this.ensureClient();
+      await this.client!.delete(this.collectionName, {
         wait: true,
         points: ids,
       });
@@ -196,7 +246,8 @@ export class QdrantVectorStore {
    */
   async deleteByFilter(filter: Record<string, unknown>): Promise<void> {
     try {
-      await this.client.delete(this.collectionName, {
+      await this.ensureClient();
+      await this.client!.delete(this.collectionName, {
         wait: true,
         filter,
       });
@@ -212,7 +263,8 @@ export class QdrantVectorStore {
    */
   async getCollectionInfo(): Promise<unknown> {
     try {
-      const info = await this.client.getCollection(this.collectionName);
+      await this.ensureClient();
+      const info = await this.client!.getCollection(this.collectionName);
       return info;
     } catch (error) {
       logger.error('Failed to get Qdrant collection info', { error });
@@ -225,7 +277,8 @@ export class QdrantVectorStore {
    */
   async count(filter?: Record<string, unknown>): Promise<number> {
     try {
-      const result = await this.client.count(this.collectionName, {
+      await this.ensureClient();
+      const result = await this.client!.count(this.collectionName, {
         filter,
         exact: true,
       });
@@ -245,7 +298,8 @@ export class QdrantVectorStore {
     filter?: Record<string, unknown>
   ): Promise<{ points: VectorSearchResult[]; nextOffset?: string }> {
     try {
-      const result = await this.client.scroll(this.collectionName, {
+      await this.ensureClient();
+      const result = await this.client!.scroll(this.collectionName, {
         limit,
         offset,
         filter,
@@ -253,7 +307,7 @@ export class QdrantVectorStore {
         with_vector: false,
       });
 
-      const points: VectorSearchResult[] = result.points.map(p => ({
+      const points: VectorSearchResult[] = result.points.map((p: any) => ({
         id: String(p.id),
         score: 1, // No score in scroll results
         payload: p.payload || {},
@@ -274,7 +328,8 @@ export class QdrantVectorStore {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      await this.client.getCollections();
+      await this.ensureClient();
+      await this.client!.getCollections();
       return true;
     } catch (error) {
       logger.error('Qdrant health check failed', { error });
