@@ -1,0 +1,35 @@
+{
+  "name": "@axon/middleware",
+  "version": "0.1.0",
+  "description": "Orchestration middleware for Axon context management",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.18.3",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "dependencies": {
+    "@axon/context-engine": "workspace:*",
+    "@axon/llm-gateway": "workspace:*",
+    "@axon/prompt-analyzer": "workspace:*",
+    "@axon/shared": "workspace:*",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
+    "eslint": "^9.39.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.6"
+  }
+}
