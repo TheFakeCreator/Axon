@@ -9,6 +9,11 @@
 import { TaskCategory, IntentType, IEntity } from '@axon/shared';
 
 /**
+ * Re-export TaskCategory from shared for external use
+ */
+export { TaskCategory };
+
+/**
  * Workspace-specific intent categories
  */
 export enum IntentCategory {
@@ -41,11 +46,16 @@ export interface IntentResult {
  * Task type identification result
  */
 export interface TaskTypeResult {
-  taskType: TaskType; // Primary task type (renamed from primaryType)
-  confidence: ConfidenceScore;
+  primary: {
+    category: TaskType;
+    confidence: ConfidenceScore;
+  };
   indicators: string[]; // Keywords/patterns that led to this classification
   isMultiTask: boolean; // True if multiple task types detected
-  secondaryTasks?: TaskType[]; // Additional task types if multi-task (renamed from additionalTypes)
+  secondaryTasks?: Array<{
+    category: TaskType;
+    confidence: ConfidenceScore;
+  }>; // Additional task types if multi-task
 }
 
 /**
@@ -62,6 +72,26 @@ export interface IdentifierConfig {
   confidenceThreshold?: number; // Minimum confidence to include a task type
   maxTaskTypes?: number; // Maximum number of task types to return
 }
+
+/**
+ * Entity extractor configuration
+ */
+export interface ExtractorConfig {
+  confidenceThreshold?: number; // Minimum confidence to include an entity
+  maxEntities?: number; // Maximum number of entities to return
+  enableNLP?: boolean; // Enable NLP-based extraction (compromise)
+}
+
+/**
+ * Ambiguity detector configuration
+ */
+export interface DetectorConfig {
+  severityThreshold?: 'low' | 'medium' | 'high'; // Minimum severity to report
+  enableNLP?: boolean; // Enable NLP-based detection
+  maxAmbiguities?: number; // Maximum number of ambiguities to return
+}
+
+
 
 
 /**
@@ -189,9 +219,25 @@ export interface AnalyzerConfig {
     minSeverity: 'low' | 'medium' | 'high';
   };
   
-  // General config
-  cacheResults: boolean;
-  cacheTTL: number; // seconds
+  // Metadata extraction config
+  metadata?: {
+    detectLanguage?: boolean;
+    calculateComplexity?: boolean;
+  };
+  
+  // Caching config
+  caching?: {
+    enabled?: boolean;
+    ttlMinutes?: number;
+    maxEntries?: number;
+  };
+  
+  // Logging config
+  logging?: {
+    enabled?: boolean;
+    logLevel?: 'debug' | 'info' | 'warn' | 'error';
+    includeMetrics?: boolean;
+  };
 }
 
 /**

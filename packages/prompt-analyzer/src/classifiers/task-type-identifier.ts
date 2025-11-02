@@ -161,19 +161,26 @@ export class TaskTypeIdentifier {
     // Determine primary and additional task types
     if (validTasks.length === 0) {
       return {
-        taskType: TaskCategory.GENERAL_QUERY,
-        confidence: 0.5,
+        primary: {
+          category: TaskCategory.GENERAL_QUERY,
+          confidence: 0.5,
+        },
         isMultiTask: false,
         indicators: [],
       };
     }
 
     const [primaryTask, primaryConfidence] = validTasks[0];
-    const secondaryTasks = validTasks.slice(1).map(([type]) => type);
+    const secondaryTasks = validTasks.slice(1).map(([type, conf]) => ({
+      category: type,
+      confidence: conf,
+    }));
 
     return {
-      taskType: primaryTask,
-      confidence: primaryConfidence,
+      primary: {
+        category: primaryTask,
+        confidence: primaryConfidence,
+      },
       secondaryTasks: secondaryTasks.length > 0 ? secondaryTasks : undefined,
       isMultiTask: validTasks.length > 1,
       indicators: indicators.get(primaryTask) || [],
