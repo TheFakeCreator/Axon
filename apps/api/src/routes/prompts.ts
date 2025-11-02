@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod';
 import { AppError } from '../middleware/error-handler.js';
 import { logger } from '../utils/logger.js';
+import { getServices } from '../services/index.js';
 
 const router: Router = Router();
 
@@ -26,8 +27,6 @@ type ProcessPromptRequest = z.infer<typeof processPromptSchema>;
 /**
  * POST /api/v1/prompts/process
  * Process a prompt with context injection
- * 
- * TODO: Integrate PromptOrchestrator once service dependencies are initialized
  */
 router.post('/process', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -43,9 +42,9 @@ router.post('/process', async (req: Request, res: Response, next: NextFunction) 
       source,
     });
 
-    // TODO: Initialize and use PromptOrchestrator here
-    // For MVP, return placeholder response
-    
+    // Get the orchestrator service
+    const { promptOrchestrator } = getServices();
+
     if (stream) {
       // Set headers for SSE
       res.setHeader('Content-Type', 'text/event-stream');
@@ -53,33 +52,57 @@ router.post('/process', async (req: Request, res: Response, next: NextFunction) 
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
-      // Placeholder streaming response
-      res.write(`data: ${JSON.stringify({
-        type: 'start',
-        requestId: 'mock-request-id',
-      })}\n\n`);
+      try {
+        // Use streaming orchestration
+        const streamGenerator = promptOrchestrator.processStreaming({
+          prompt,
+          workspaceId,
+          metadata,
+        });
 
-      res.write(`data: ${JSON.stringify({
-        type: 'content',
-        content: 'Middleware integration coming soon. This is a placeholder response.',
-      })}\n\n`);
+        // Send start event
+        res.write(`data: ${JSON.stringify({
+          type: 'start',
+          requestId: 'streaming',
+        })}\n\n`);
 
-      res.write('data: [DONE]\n\n');
-      res.end();
+        for await (const chunk of streamGenerator) {
+          // Send Server-Sent Event
+          res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        }
+
+        // Send completion event
+        res.write('data: [DONE]\n\n');
+        res.end();
+      } catch (error) {
+        logger.error('Streaming error:', error);
+        res.write(`data: ${JSON.stringify({
+          type: 'error',
+          error: {
+            code: 'STREAMING_ERROR',
+            message: error instanceof Error ? error.message : 'Streaming failed',
+          },
+        })}\n\n`);
+        res.end();
+      }
     } else {
       // Non-streaming response
+      const result = await promptOrchestrator.process({
+        prompt,
+        workspaceId,
+        metadata,
+      });
+
       res.json({
         success: true,
         data: {
-          requestId: 'mock-request-id',
-          response: {
-            content: 'Middleware integration coming soon. This is a placeholder response.',
-          },
+          requestId: result.requestId,
+          response: result.llmResponse.content,
           metadata: {
-            tokensUsed: 0,
-            latency: {
-              total: 0,
-            },
+            tokensUsed: result.llmResponse.usage.totalTokens,
+            latency: result.latencyBreakdown,
+            contextUsed: result.retrievedContexts.length,
+            actions: result.processedResponse.actions,
           },
         },
       });

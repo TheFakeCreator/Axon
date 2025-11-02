@@ -11,6 +11,7 @@ import { healthRouter } from './routes/health.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { rateLimiter } from './middleware/rate-limiter.js';
 import { logger } from './utils/logger.js';
+import { initializeServices, shutdownServices } from './services/index.js';
 
 const app: Express = express();
 const PORT = config.PORT || 3000;
@@ -59,27 +60,57 @@ app.use((req: Request, res: Response) => {
 // Error handler (must be last)
 app.use(errorHandler);
 
-// Graceful shutdown
-const server = app.listen(PORT, () => {
-  logger.info(`🚀 Axon API Gateway listening on port ${PORT}`);
-  logger.info(`📊 Environment: ${config.NODE_ENV}`);
-  logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
-});
+// Initialize services and start server
+async function startServer() {
+  try {
+    // Initialize all Axon services
+    logger.info('Initializing Axon services...');
+    await initializeServices();
+    logger.info('✅ All services initialized successfully');
 
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
-  });
-});
+    // Start Express server
+    const server = app.listen(PORT, () => {
+      logger.info(`🚀 Axon API Gateway listening on port ${PORT}`);
+      logger.info(`📊 Environment: ${config.NODE_ENV}`);
+      logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
+    });
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
-  });
-});
+    // Graceful shutdown
+    const shutdown = async (signal: string) => {
+      logger.info(`${signal} received, shutting down gracefully...`);
+      
+      // Close HTTP server
+      server.close(async () => {
+        logger.info('HTTP server closed');
+        
+        // Shutdown services
+        try {
+          await shutdownServices();
+          logger.info('Services shutdown complete');
+          process.exit(0);
+        } catch (error) {
+          logger.error('Error during service shutdown', { error });
+          process.exit(1);
+        }
+      });
+
+      // Force shutdown after 10 seconds
+      setTimeout(() => {
+        logger.error('Forced shutdown after timeout');
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
+  } catch (error) {
+    logger.error('Failed to start server', { error });
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
 
 export default app;

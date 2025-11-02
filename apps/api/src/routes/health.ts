@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { checkServicesHealth } from '../services/index.js';
 
 const router: Router = Router();
 
@@ -14,18 +15,15 @@ router.get('/', (req: Request, res: Response) => {
   });
 });
 
-router.get('/ready', (req: Request, res: Response) => {
-  // Check if all services are ready
-  // For MVP, we'll just return true
-  res.json({
-    success: true,
+router.get('/ready', async (req: Request, res: Response) => {
+  const health = await checkServicesHealth();
+  
+  res.status(health.healthy ? 200 : 503).json({
+    success: health.healthy,
     data: {
-      ready: true,
-      services: {
-        database: 'ready',
-        vectorStore: 'ready',
-        cache: 'ready',
-      },
+      ready: health.healthy,
+      services: health.services,
+      timestamp: new Date().toISOString(),
     },
   });
 });
