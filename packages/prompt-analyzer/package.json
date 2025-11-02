@@ -1,0 +1,30 @@
+{
+  "name": "@axon/prompt-analyzer",
+  "version": "0.1.0",
+  "description": "Prompt Analyzer Service - Intent classification, task type identification, entity extraction, and ambiguity detection",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": ["nlp", "prompt", "analyzer", "intent", "entity-extraction"],
+  "author": "Axon Team",
+  "license": "MIT",
+  "packageManager": "pnpm@10.18.3",
+  "dependencies": {
+    "@axon/shared": "workspace:*",
+    "compromise": "^14.14.4",
+    "natural": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/natural": "^6.0.1",
+    "@types/node": "^24.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.6"
+  }
+}

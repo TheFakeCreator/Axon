@@ -1,0 +1,28 @@
+{
+  "name": "@axon/llm-gateway",
+  "version": "0.1.0",
+  "description": "LLM Gateway Service - Abstraction layer for multiple LLM providers with streaming, retry logic, and rate limiting",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": ["llm", "openai", "gateway", "ai", "streaming"],
+  "author": "Axon Team",
+  "license": "MIT",
+  "packageManager": "pnpm@10.18.3",
+  "dependencies": {
+    "@axon/shared": "workspace:*",
+    "openai": "^6.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.6"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "@axon/shared",
+  "version": "0.1.0",
+  "description": "Shared types and utilities for Axon",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "tsx src/scripts/db-cli.ts migrate",
+    "db:seed": "tsx src/scripts/db-cli.ts seed",
+    "db:reset": "tsx src/scripts/db-cli.ts reset",
+    "db:setup": "tsx src/scripts/db-cli.ts setup",
+    "db:status": "tsx src/scripts/db-cli.ts status"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.18.3",
+  "dependencies": {
+    "@qdrant/js-client-rest": "^1.15.1",
+    "@xenova/transformers": "^2.17.2",
+    "bullmq": "^5.63.0",
+    "dotenv": "^17.2.3",
+    "envalid": "^8.1.0",
+    "ioredis": "^5.8.2",
+    "mongodb": "^6.20.0",
+    "winston": "^3.18.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
+    "cross-env": "^10.1.0",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.1.8",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.6"
+  }
+}
