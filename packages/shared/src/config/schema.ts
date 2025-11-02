@@ -69,6 +69,13 @@ export function validateEnv() {
       default: 'axon-contexts',
     }),
 
+    // LLM Provider configuration
+    LLM_PROVIDER: str({
+      desc: 'LLM provider to use',
+      choices: ['openai', 'ollama', 'anthropic'],
+      default: 'ollama',
+    }),
+
     // OpenAI configuration
     OPENAI_API_KEY: str({
       desc: 'OpenAI API key',
@@ -78,6 +85,16 @@ export function validateEnv() {
     OPENAI_MODEL: str({
       desc: 'Default OpenAI model',
       default: 'gpt-4',
+    }),
+
+    // Ollama configuration (local LLM)
+    OLLAMA_BASE_URL: str({
+      desc: 'Ollama API base URL',
+      default: 'http://localhost:11434',
+    }),
+    OLLAMA_MODEL: str({
+      desc: 'Ollama model name',
+      default: 'llama3.2:1b',
     }),
 
     // Anthropic configuration

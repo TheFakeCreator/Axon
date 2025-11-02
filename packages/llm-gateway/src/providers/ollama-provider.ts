@@ -1,13 +1,13 @@
 /**
  * Ollama Local LLM Provider (Stub for post-MVP)
- * 
+ *
  * This is a placeholder implementation for Ollama's local LLM API.
  * To enable this provider:
  * 1. Install Ollama: https://ollama.ai/download
  * 2. Pull a model: ollama pull llama3
  * 3. Implement the methods below using fetch or axios to call Ollama's REST API
  * 4. Add Ollama-specific configuration and error handling
- * 
+ *
  * @see https://github.com/ollama/ollama/blob/main/docs/api.md
  */
 
@@ -42,150 +42,140 @@ export class OllamaProvider implements ILLMProvider {
 
   /**
    * Complete a prompt (non-streaming)
-   * @todo Implement using Ollama REST API
    */
   async complete(request: CompletionRequest): Promise<CompletionResponse> {
-    logger.warn('OllamaProvider.complete is not implemented yet (stub)', {
+    logger.info('OllamaProvider.complete called', {
       provider: this.name,
       model: request.model,
     });
 
-    throw new Error(
-      'OllamaProvider is not implemented. This is a stub for future development. ' +
-        'Install Ollama and implement the complete() method using the REST API.'
-    );
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: request.model || 'llama3.2:1b',
+          prompt: request.messages.map((m) => `${m.role}: ${m.content}`).join('\n\n'),
+          stream: false,
+          options: {
+            temperature: request.temperature ?? 0.7,
+            num_predict: request.maxTokens,
+            top_p: request.topP,
+          },
+        }),
+        signal: AbortSignal.timeout(this.config.timeout || 30000),
+      });
 
-    // TODO: Implement using Ollama REST API
-    /*
-    const response = await fetch(`${this.config.baseUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: request.model,
-        prompt: request.messages.map(m => m.content).join('\n'),
-        stream: false,
-        options: {
-          temperature: request.temperature ?? 0.7,
-          num_predict: request.maxTokens,
-          top_p: request.topP,
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Ollama API error: ${response.statusText} - ${errorText}`);
+      }
+
+      const data = (await response.json()) as {
+        response: string;
+        done: boolean;
+        prompt_eval_count?: number;
+        eval_count?: number;
+      };
+
+      return {
+        id: `ollama-${Date.now()}`,
+        model: request.model || 'llama3.2:1b',
+        content: data.response,
+        finishReason: data.done ? 'stop' : null,
+        usage: {
+          promptTokens: data.prompt_eval_count || 0,
+          completionTokens: data.eval_count || 0,
+          totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
         },
-      }),
-      signal: AbortSignal.timeout(this.config.timeout || 30000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.statusText}`);
+        createdAt: new Date(),
+      };
+    } catch (error) {
+      logger.error('Ollama completion error', { error });
+      throw error;
     }
-
-    const data = await response.json();
-
-    return {
-      id: `ollama-${Date.now()}`,
-      model: request.model,
-      content: data.response,
-      finishReason: data.done ? 'stop' : null,
-      usage: {
-        promptTokens: data.prompt_eval_count || 0,
-        completionTokens: data.eval_count || 0,
-        totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
-      },
-      createdAt: new Date(),
-    };
-    */
   }
 
   /**
    * Complete a prompt with streaming
-   * @todo Implement using Ollama REST API streaming
    */
   async *completeStream(request: CompletionRequest): AsyncGenerator<StreamChunk> {
-    logger.warn('OllamaProvider.completeStream is not implemented yet (stub)', {
+    logger.info('OllamaProvider.completeStream called', {
       provider: this.name,
       model: request.model,
     });
 
-    throw new Error(
-      'OllamaProvider streaming is not implemented. This is a stub for future development. ' +
-        'Install Ollama and implement the completeStream() method using the streaming API.'
-    );
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: request.model || 'llama3.2:1b',
+          prompt: request.messages.map((m) => `${m.role}: ${m.content}`).join('\n\n'),
+          stream: true,
+          options: {
+            temperature: request.temperature ?? 0.7,
+            num_predict: request.maxTokens,
+            top_p: request.topP,
+          },
+        }),
+      });
 
-    // TODO: Implement using Ollama REST API streaming
-    /*
-    const response = await fetch(`${this.config.baseUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: request.model,
-        prompt: request.messages.map(m => m.content).join('\n'),
-        stream: true,
-        options: {
-          temperature: request.temperature ?? 0.7,
-          num_predict: request.maxTokens,
-          top_p: request.topP,
-        },
-      }),
-    });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Ollama API error: ${response.statusText} - ${errorText}`);
+      }
 
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.statusText}`);
-    }
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Response body is null');
+      }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('Response body is null');
-    }
+      const decoder = new TextDecoder();
+      let index = 0;
+      let buffer = '';
 
-    const decoder = new TextDecoder();
-    let index = 0;
-    let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (line.trim() === '') continue;
 
-      for (const line of lines) {
-        if (line.trim() === '') continue;
-        
-        try {
-          const data = JSON.parse(line);
-          
-          yield {
-            id: `ollama-${Date.now()}`,
-            model: request.model,
-            delta: data.response || '',
-            finishReason: data.done ? 'stop' : null,
-            index: index++,
-          };
+          try {
+            const data = JSON.parse(line) as {
+              response: string;
+              done: boolean;
+            };
 
-          if (data.done) break;
-        } catch (error) {
-          logger.error('Error parsing Ollama streaming response', { error, line });
+            yield {
+              id: `ollama-${Date.now()}`,
+              model: request.model || 'llama3.2:1b',
+              delta: data.response || '',
+              finishReason: data.done ? 'stop' : null,
+              index: index++,
+            };
+
+            if (data.done) break;
+          } catch (error) {
+            logger.error('Error parsing Ollama streaming response', { error, line });
+          }
         }
       }
+    } catch (error) {
+      logger.error('Ollama streaming error', { error });
+      throw error;
     }
-    */
-
-    // Placeholder to satisfy TypeScript generator type
-    yield {
-      id: 'stub-id',
-      model: request.model,
-      delta: '',
-      finishReason: 'stop',
-      index: 0,
-    };
   }
 
   /**
    * Check if the provider is available
    */
   async isAvailable(): Promise<boolean> {
-    // TODO: Implement actual availability check
-    // Try to connect to Ollama server
-    /*
     try {
       const response = await fetch(`${this.config.baseUrl}/api/tags`, {
         signal: AbortSignal.timeout(5000),
@@ -194,8 +184,6 @@ export class OllamaProvider implements ILLMProvider {
     } catch {
       return false;
     }
-    */
-    return false; // Stub always returns false
   }
 
   /**
@@ -223,22 +211,19 @@ export class OllamaProvider implements ILLMProvider {
 
   /**
    * List available models (Ollama-specific utility)
-   * @todo Implement to fetch available models from Ollama
    */
   async listModels(): Promise<string[]> {
-    logger.warn('OllamaProvider.listModels is not implemented yet (stub)');
-    
-    // TODO: Implement
-    /*
-    const response = await fetch(`${this.config.baseUrl}/api/tags`);
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.statusText}`);
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/tags`);
+      if (!response.ok) {
+        throw new Error(`Ollama API error: ${response.statusText}`);
+      }
+      const data = (await response.json()) as { models: { name: string }[] };
+      return data.models.map((m: { name: string }) => m.name);
+    } catch (error) {
+      logger.error('Error listing Ollama models', { error });
+      return [];
     }
-    const data = await response.json();
-    return data.models.map((m: { name: string }) => m.name);
-    */
-    
-    return [];
   }
 }
 

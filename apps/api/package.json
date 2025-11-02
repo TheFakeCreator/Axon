@@ -16,7 +16,10 @@
   "packageManager": "pnpm@10.18.3",
   "type": "module",
   "dependencies": {
+    "@axon/context-engine": "workspace:*",
+    "@axon/llm-gateway": "workspace:*",
     "@axon/middleware": "workspace:*",
+    "@axon/prompt-analyzer": "workspace:*",
     "@axon/quality-gate": "workspace:*",
     "@axon/shared": "workspace:*",
     "@axon/workspace-manager": "workspace:*",

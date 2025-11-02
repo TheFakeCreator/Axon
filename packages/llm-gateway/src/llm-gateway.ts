@@ -1,6 +1,6 @@
 /**
  * LLM Gateway Service
- * 
+ *
  * Main service that orchestrates LLM providers with:
  * - Rate limiting
  * - Circuit breaker
@@ -23,6 +23,7 @@ import {
   LLMMetrics,
 } from './types';
 import { OpenAIProvider } from './providers/openai-provider';
+import { OllamaProvider } from './providers/ollama-provider';
 
 /**
  * Rate limiter using token bucket algorithm
@@ -93,11 +94,7 @@ class CircuitBreaker {
   private successThreshold: number;
   private timeout: number;
 
-  constructor(
-    failureThreshold: number,
-    successThreshold: number,
-    timeout: number
-  ) {
+  constructor(failureThreshold: number, successThreshold: number, timeout: number) {
     this.failureThreshold = failureThreshold;
     this.successThreshold = successThreshold;
     this.timeout = timeout;
@@ -265,8 +262,7 @@ export class LLMGatewayService {
       this.metrics.successfulRequests++;
       this.metrics.totalTokens += response.usage.totalTokens;
       this.metrics.totalLatencyMs += duration;
-      this.metrics.averageLatencyMs =
-        this.metrics.totalLatencyMs / this.metrics.successfulRequests;
+      this.metrics.averageLatencyMs = this.metrics.totalLatencyMs / this.metrics.successfulRequests;
 
       // Consume rate limit tokens
       if (this.rateLimiter) {
@@ -299,9 +295,7 @@ export class LLMGatewayService {
   /**
    * Generate a streaming completion
    */
-  async *completeStream(
-    request: CompletionRequest
-  ): AsyncGenerator<StreamChunk, void, unknown> {
+  async *completeStream(request: CompletionRequest): AsyncGenerator<StreamChunk, void, unknown> {
     const startTime = Date.now();
     this.metrics.totalRequests++;
 
@@ -343,8 +337,7 @@ export class LLMGatewayService {
       this.metrics.successfulRequests++;
       this.metrics.totalTokens += Math.ceil(totalTokensEstimate);
       this.metrics.totalLatencyMs += duration;
-      this.metrics.averageLatencyMs =
-        this.metrics.totalLatencyMs / this.metrics.successfulRequests;
+      this.metrics.averageLatencyMs = this.metrics.totalLatencyMs / this.metrics.successfulRequests;
 
       // Consume rate limit tokens (estimate)
       if (this.rateLimiter) {
@@ -435,7 +428,10 @@ export class LLMGatewayService {
         throw new Error('Anthropic provider not yet implemented');
 
       case LLMProvider.OLLAMA:
-        throw new Error('Ollama provider not yet implemented');
+        return new OllamaProvider({
+          baseUrl: this.config.provider.baseUrl || 'http://localhost:11434',
+          timeout: this.config.provider.timeout || 30000,
+        });
 
       default:
         throw new Error(`Unsupported provider: ${providerType}`);

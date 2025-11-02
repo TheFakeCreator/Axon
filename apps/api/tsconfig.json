@@ -9,6 +9,9 @@
   "include": ["src/**/*"],
   "references": [
     { "path": "../../packages/shared" },
+    { "path": "../../packages/llm-gateway" },
+    { "path": "../../packages/prompt-analyzer" },
+    { "path": "../../packages/context-engine" },
     { "path": "../../packages/middleware" },
     { "path": "../../packages/workspace-manager" },
     { "path": "../../packages/quality-gate" }

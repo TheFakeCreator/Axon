@@ -1,6 +1,6 @@
 /**
  * Configuration Utilities
- * 
+ *
  * Helper functions for creating and validating LLM Gateway configurations.
  */
 
@@ -41,12 +41,7 @@ const DEFAULT_RETRY: RetryConfig = {
   initialDelayMs: 1000, // 1s
   maxDelayMs: 60000, // 60s max
   backoffMultiplier: 2, // Exponential backoff
-  retryableErrors: [
-    'rate_limit',
-    'server_error',
-    'timeout',
-    'network',
-  ],
+  retryableErrors: ['rate_limit', 'server_error', 'timeout', 'network'],
 };
 
 /**
@@ -118,8 +113,8 @@ function getDefaultModel(provider: LLMProvider): LLMModel {
 export function validateConfig(config: LLMGatewayConfig): string[] {
   const errors: string[] = [];
 
-  // Validate provider config
-  if (!config.provider.apiKey) {
+  // Validate provider config - API key not required for Ollama
+  if (!config.provider.apiKey && config.provider.provider !== LLMProvider.OLLAMA) {
     errors.push('Provider API key is required');
   }
 
