@@ -1,0 +1,1353 @@
+openapi: 3.0.3
+info:
+  title: Axon Context Management API
+  version: 1.0.0
+  description: |
+    REST API for Axon - A scalable context management architecture for intelligent copilot systems.
+
+    Axon intercepts user prompts, enriches them with relevant context from a multi-tier context base,
+    and synthesizes contextually-aware responses through LLM integration.
+
+    ## Key Features
+    - **Context-Aware Prompts**: Automatic context retrieval and injection
+    - **Multi-Tier Context**: Workspace, Hybrid, and Global context tiers
+    - **Intelligent Analysis**: Intent classification, task type identification, entity extraction
+    - **Streaming Support**: Server-Sent Events (SSE) for real-time responses
+    - **Quality Gates**: Automated testing, linting, and validation
+
+    ## Authentication
+    Authentication is currently disabled for MVP. Future versions will require API keys.
+
+  contact:
+    name: Axon Development Team
+    url: https://github.com/TheFakeCreator/Axon
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+  - url: https://api.axon.dev/api/v1
+    description: Production server (future)
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Prompts
+    description: Prompt processing and history
+  - name: Workspaces
+    description: Workspace management (MVP placeholders)
+  - name: Contexts
+    description: Context management (MVP placeholders)
+  - name: Quality Gate
+    description: Quality assurance execution
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Basic health check
+      description: Returns a simple health status indicating the API is running
+      operationId: getHealth
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  timestamp:
+                    type: string
+                    format: date-time
+              example:
+                status: ok
+                timestamp: '2025-11-07T10:30:00.000Z'
+
+  /health/ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      description: Checks if the API is ready to accept requests (all dependencies available)
+      operationId: getHealthReady
+      responses:
+        '200':
+          description: API is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+        '503':
+          description: API is not ready (dependencies unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+
+  /health/live:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      description: Checks if the API is alive and functioning
+      operationId: getHealthLive
+      responses:
+        '200':
+          description: API is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+        '503':
+          description: API is not functioning properly
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+
+  /prompts/process:
+    post:
+      tags:
+        - Prompts
+      summary: Process a prompt with context enrichment
+      description: |
+        Processes a user prompt through the complete Axon pipeline:
+        1. **Collection**: Validates and enriches the prompt with metadata
+        2. **Analysis**: Classifies intent, identifies task type, extracts entities
+        3. **Retrieval**: Fetches relevant context from the context base
+        4. **Synthesis**: Formats and compresses context within token budget
+        5. **Injection**: Constructs the enriched prompt with appropriate strategy
+        6. **LLM Processing**: Sends to LLM and receives response
+        7. **Post-Processing**: Extracts actions, assesses quality, captures knowledge
+
+        Supports both streaming (SSE) and non-streaming responses.
+      operationId: processPrompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessPromptRequest'
+            examples:
+              simple-query:
+                summary: Simple coding query
+                value:
+                  prompt: 'How do I implement a binary search tree in TypeScript?'
+                  workspaceId: 'ws_123abc'
+                  source: 'vscode'
+                  stream: false
+              bug-fix:
+                summary: Bug fixing with diagnostics
+                value:
+                  prompt: 'Fix the null pointer exception in the getUserById function'
+                  workspaceId: 'ws_123abc'
+                  source: 'vscode'
+                  metadata:
+                    fileName: 'user-service.ts'
+                    cursorPosition:
+                      line: 42
+                      column: 15
+                    diagnostics:
+                      - message: "Object is possibly 'null'"
+                        severity: 'error'
+                        line: 42
+                  stream: false
+              streaming:
+                summary: Streaming response
+                value:
+                  prompt: 'Explain the repository pattern with examples'
+                  workspaceId: 'ws_123abc'
+                  source: 'cli'
+                  stream: true
+      responses:
+        '200':
+          description: Prompt processed successfully (non-streaming)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessPromptResponse'
+              example:
+                requestId: 'req_1a2b3c4d'
+                prompt: 'How do I implement a binary search tree in TypeScript?'
+                analysis:
+                  intent: 'coding'
+                  taskType: 'general_query'
+                  confidence: 0.92
+                  entities:
+                    - text: 'binary search tree'
+                      type: 'concept'
+                      confidence: 0.95
+                    - text: 'TypeScript'
+                      type: 'technology'
+                      confidence: 1.0
+                  isAmbiguous: false
+                contexts:
+                  - id: 'ctx_abc123'
+                    type: 'documentation'
+                    summary: 'TypeScript class syntax and generics'
+                    relevanceScore: 0.89
+                  - id: 'ctx_def456'
+                    type: 'file'
+                    summary: 'Existing data structure implementations'
+                    relevanceScore: 0.78
+                response:
+                  content: "Here's how to implement a binary search tree in TypeScript:\n\n```typescript\nclass TreeNode<T> {\n  value: T;\n  left: TreeNode<T> | null = null;\n  right: TreeNode<T> | null = null;\n\n  constructor(value: T) {\n    this.value = value;\n  }\n}\n\nclass BinarySearchTree<T> {\n  root: TreeNode<T> | null = null;\n\n  insert(value: T): void {\n    // Implementation...\n  }\n\n  search(value: T): TreeNode<T> | null {\n    // Implementation...\n  }\n}\n```"
+                  qualityScore: 0.94
+                  actions:
+                    - type: 'create'
+                      target: 'binary-search-tree.ts'
+                      description: 'Create new BST implementation file'
+                      confidence: 0.87
+                latency:
+                  total: 2345
+                  collection: 8
+                  analysis: 145
+                  retrieval: 287
+                  synthesis: 76
+                  injection: 34
+                  llm: 1650
+                  postProcessing: 145
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'Validation Error'
+                message: 'Prompt is required and must be a non-empty string'
+                statusCode: 400
+                details:
+                  field: 'prompt'
+                  constraint: 'minLength'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'Internal Server Error'
+                message: 'Failed to process prompt'
+                statusCode: 500
+        '503':
+          description: Service unavailable (LLM or database error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'Service Unavailable'
+                message: 'LLM service is temporarily unavailable'
+                statusCode: 503
+      x-streaming:
+        description: |
+          When `stream: true`, the response uses Server-Sent Events (SSE) with `Content-Type: text/event-stream`.
+
+          **Event Types**:
+          - `metadata`: Initial metadata with requestId and analysis
+          - `chunk`: Text chunks from the LLM
+          - `done`: Final event with complete response and metrics
+          - `error`: Error event if processing fails
+
+          **Example SSE Stream**:
+          ```
+          event: metadata
+          data: {"requestId":"req_123","analysis":{"intent":"coding","taskType":"general_query"}}
+
+          event: chunk
+          data: {"content":"Here's how to"}
+
+          event: chunk
+          data: {"content":" implement a BST:"}
+
+          event: done
+          data: {"latency":{"total":2100},"qualityScore":0.92}
+          ```
+
+  /prompts/history:
+    get:
+      tags:
+        - Prompts
+      summary: Get prompt history
+      description: Retrieves the history of processed prompts for a workspace (MVP placeholder)
+      operationId: getPromptHistory
+      parameters:
+        - name: workspaceId
+          in: query
+          description: Filter by workspace ID
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Prompt history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prompts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PromptHistoryItem'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+              example:
+                prompts: []
+                total: 0
+                limit: 50
+                offset: 0
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workspaces:
+    get:
+      tags:
+        - Workspaces
+      summary: List all workspaces
+      description: Retrieves a list of all registered workspaces (MVP placeholder)
+      operationId: listWorkspaces
+      responses:
+        '200':
+          description: Workspaces retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workspaces:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Workspace'
+              example:
+                workspaces: []
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Workspaces
+      summary: Create a new workspace
+      description: Registers a new workspace with the specified configuration (MVP placeholder)
+      operationId: createWorkspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+            example:
+              name: 'My TypeScript Project'
+              type: 'coding'
+              path: '/Users/dev/projects/my-app'
+              config:
+                techStack:
+                  - 'TypeScript'
+                  - 'React'
+                  - 'Node.js'
+      responses:
+        '201':
+          description: Workspace created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workspaces/{id}:
+    get:
+      tags:
+        - Workspaces
+      summary: Get workspace by ID
+      description: Retrieves detailed information about a specific workspace (MVP placeholder)
+      operationId: getWorkspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workspace ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workspace retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Workspaces
+      summary: Update workspace
+      description: Updates workspace configuration (MVP placeholder)
+      operationId: updateWorkspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workspace ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceRequest'
+      responses:
+        '200':
+          description: Workspace updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Workspaces
+      summary: Delete workspace
+      description: Deletes a workspace and all associated contexts (MVP placeholder)
+      operationId: deleteWorkspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workspace ID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Workspace deleted successfully
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workspaces/{id}/scan:
+    post:
+      tags:
+        - Workspaces
+      summary: Scan and index workspace
+      description: Initiates a full scan of the workspace to extract and index contexts (MVP placeholder)
+      operationId: scanWorkspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workspace ID
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Scan initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  scanId:
+                    type: string
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /contexts:
+    get:
+      tags:
+        - Contexts
+      summary: List contexts
+      description: Retrieves a list of contexts with optional filtering (MVP placeholder)
+      operationId: listContexts
+      parameters:
+        - name: workspaceId
+          in: query
+          description: Filter by workspace ID
+          schema:
+            type: string
+        - name: tier
+          in: query
+          description: Filter by context tier
+          schema:
+            type: string
+            enum: [workspace, hybrid, global]
+        - name: type
+          in: query
+          description: Filter by context type
+          schema:
+            type: string
+            enum: [file, symbol, documentation, conversation, error, architecture]
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Contexts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contexts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Context'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+    post:
+      tags:
+        - Contexts
+      summary: Create a new context
+      description: Manually creates a new context entry (MVP placeholder)
+      operationId: createContext
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContextRequest'
+      responses:
+        '201':
+          description: Context created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Context'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /contexts/{id}:
+    get:
+      tags:
+        - Contexts
+      summary: Get context by ID
+      description: Retrieves detailed information about a specific context (MVP placeholder)
+      operationId: getContext
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Context ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Context retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Context'
+        '404':
+          description: Context not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Contexts
+      summary: Update context
+      description: Updates an existing context (MVP placeholder)
+      operationId: updateContext
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Context ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContextRequest'
+      responses:
+        '200':
+          description: Context updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Context'
+        '404':
+          description: Context not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Contexts
+      summary: Delete context
+      description: Deletes a context entry (MVP placeholder)
+      operationId: deleteContext
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Context ID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Context deleted successfully
+        '404':
+          description: Context not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /contexts/search:
+    post:
+      tags:
+        - Contexts
+      summary: Search contexts
+      description: Performs semantic search across contexts (MVP placeholder)
+      operationId: searchContexts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchContextsRequest'
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contexts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Context'
+                  total:
+                    type: integer
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /quality-gate/execute:
+    post:
+      tags:
+        - Quality Gate
+      summary: Execute quality gate checks
+      description: |
+        Runs quality assurance checks on a project directory.
+
+        **Supported Checks**:
+        - **Testing**: Executes test suite (Jest, Vitest, Mocha, AVA, TAP)
+        - **Linting**: Runs linters (ESLint, TSLint, Biome, Oxlint)
+        - **Type Checking**: Validates TypeScript types
+        - **Custom**: Executes custom commands
+
+        Returns a comprehensive quality report with weighted scoring.
+      operationId: executeQualityGate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QualityGateRequest'
+            examples:
+              full-check:
+                summary: Full quality check
+                value:
+                  projectPath: '/path/to/project'
+                  checks:
+                    runTests: true
+                    runLinting: true
+                    runTypeCheck: true
+              selective:
+                summary: Selective checks
+                value:
+                  projectPath: '/path/to/project'
+                  checks:
+                    runTests: true
+                    runLinting: true
+                    runTypeCheck: false
+                  config:
+                    testFramework: 'vitest'
+                    linter: 'eslint'
+              custom:
+                summary: With custom checks
+                value:
+                  projectPath: '/path/to/project'
+                  checks:
+                    runTests: true
+                    runLinting: true
+                    runTypeCheck: true
+                  config:
+                    customChecks:
+                      - name: 'Security Audit'
+                        command: 'npm audit --audit-level=moderate'
+      responses:
+        '200':
+          description: Quality gate executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityGateResponse'
+              example:
+                passed: true
+                score: 87.5
+                results:
+                  testing:
+                    passed: true
+                    score: 90
+                    summary: '32 tests passed, 0 failed'
+                    details:
+                      totalTests: 32
+                      passedTests: 32
+                      failedTests: 0
+                      skippedTests: 0
+                      coverage: 87.3
+                  linting:
+                    passed: true
+                    score: 85
+                    summary: '3 warnings found'
+                    details:
+                      errors: 0
+                      warnings: 3
+                      info: 1
+                  typeCheck:
+                    passed: true
+                    score: 100
+                    summary: 'No type errors found'
+                  custom: []
+                executionTime: 12450
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Quality gate execution failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /quality-gate/status/{id}:
+    get:
+      tags:
+        - Quality Gate
+      summary: Get quality gate execution status
+      description: Retrieves the status of an async quality gate execution (MVP placeholder for future async support)
+      operationId: getQualityGateStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Execution ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [pending, running, completed, failed]
+                  result:
+                    $ref: '#/components/schemas/QualityGateResponse'
+        '404':
+          description: Execution not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ProcessPromptRequest:
+      type: object
+      required:
+        - prompt
+        - workspaceId
+      properties:
+        prompt:
+          type: string
+          description: The user's prompt to process
+          minLength: 1
+          maxLength: 10000
+        workspaceId:
+          type: string
+          description: The workspace ID to use for context retrieval
+        source:
+          type: string
+          description: Source of the prompt (e.g., vscode, cli, web)
+          default: 'api'
+        metadata:
+          type: object
+          description: Optional metadata about the prompt context
+          properties:
+            fileName:
+              type: string
+              description: File name if prompt is related to a specific file
+            language:
+              type: string
+              description: Programming language of the current file
+            cursorPosition:
+              type: object
+              properties:
+                line:
+                  type: integer
+                column:
+                  type: integer
+            diagnostics:
+              type: array
+              description: Any compiler/linter diagnostics at cursor
+              items:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  severity:
+                    type: string
+                    enum: [error, warning, info]
+                  line:
+                    type: integer
+        stream:
+          type: boolean
+          description: Whether to stream the response using SSE
+          default: false
+
+    ProcessPromptResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: Unique identifier for this request
+        prompt:
+          type: string
+          description: The original user prompt
+        analysis:
+          $ref: '#/components/schemas/PromptAnalysis'
+        contexts:
+          type: array
+          description: Contexts that were used to enrich the prompt
+          items:
+            $ref: '#/components/schemas/ContextSummary'
+        response:
+          type: object
+          properties:
+            content:
+              type: string
+              description: The LLM-generated response
+            qualityScore:
+              type: number
+              format: float
+              description: Quality assessment score (0-1)
+            actions:
+              type: array
+              description: Extracted actions from the response
+              items:
+                $ref: '#/components/schemas/ExtractedAction'
+        latency:
+          type: object
+          description: Latency breakdown for each pipeline stage (milliseconds)
+          properties:
+            total:
+              type: integer
+            collection:
+              type: integer
+            analysis:
+              type: integer
+            retrieval:
+              type: integer
+            synthesis:
+              type: integer
+            injection:
+              type: integer
+            llm:
+              type: integer
+            postProcessing:
+              type: integer
+
+    PromptAnalysis:
+      type: object
+      properties:
+        intent:
+          type: string
+          enum: [coding, pkm, general, unknown]
+          description: Classified user intent
+        taskType:
+          type: string
+          description: Specific task type (e.g., bug_fix, feature_addition, general_query)
+        confidence:
+          type: number
+          format: float
+          description: Confidence in the classification (0-1)
+        entities:
+          type: array
+          description: Extracted entities from the prompt
+          items:
+            $ref: '#/components/schemas/Entity'
+        isAmbiguous:
+          type: boolean
+          description: Whether the prompt is ambiguous and needs clarification
+        clarifications:
+          type: array
+          description: Suggested clarifying questions
+          items:
+            type: string
+
+    Entity:
+      type: object
+      properties:
+        text:
+          type: string
+          description: The entity text
+        type:
+          type: string
+          enum: [file, function, class, technology, concept, unknown]
+          description: Type of entity
+        confidence:
+          type: number
+          format: float
+          description: Confidence in extraction (0-1)
+
+    ContextSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Context ID
+        type:
+          type: string
+          enum: [file, symbol, documentation, conversation, error, architecture]
+          description: Type of context
+        summary:
+          type: string
+          description: Brief summary of the context
+        relevanceScore:
+          type: number
+          format: float
+          description: Relevance score (0-1)
+        source:
+          type: string
+          description: Source file or origin
+
+    ExtractedAction:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [create, update, delete, test]
+          description: Type of action
+        target:
+          type: string
+          description: Target of the action (e.g., file name)
+        description:
+          type: string
+          description: Description of what the action does
+        confidence:
+          type: number
+          format: float
+          description: Confidence in action extraction (0-1)
+
+    PromptHistoryItem:
+      type: object
+      properties:
+        requestId:
+          type: string
+        prompt:
+          type: string
+        workspaceId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        taskType:
+          type: string
+        qualityScore:
+          type: number
+          format: float
+
+    Workspace:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [coding, pkm, root]
+        path:
+          type: string
+        config:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateWorkspaceRequest:
+      type: object
+      required:
+        - name
+        - type
+        - path
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        type:
+          type: string
+          enum: [coding, pkm, root]
+        path:
+          type: string
+          description: Absolute path to the workspace directory
+        config:
+          type: object
+          description: Workspace-specific configuration
+
+    UpdateWorkspaceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        config:
+          type: object
+
+    Context:
+      type: object
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        tier:
+          type: string
+          enum: [workspace, hybrid, global]
+        type:
+          type: string
+          enum: [file, symbol, documentation, conversation, error, architecture]
+        content:
+          type: string
+        summary:
+          type: string
+        metadata:
+          type: object
+        usageCount:
+          type: integer
+        lastAccessed:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateContextRequest:
+      type: object
+      required:
+        - workspaceId
+        - tier
+        - type
+        - content
+      properties:
+        workspaceId:
+          type: string
+        tier:
+          type: string
+          enum: [workspace, hybrid, global]
+        type:
+          type: string
+          enum: [file, symbol, documentation, conversation, error, architecture]
+        content:
+          type: string
+        summary:
+          type: string
+        metadata:
+          type: object
+
+    UpdateContextRequest:
+      type: object
+      properties:
+        content:
+          type: string
+        summary:
+          type: string
+        metadata:
+          type: object
+
+    SearchContextsRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: Search query (semantic search)
+        workspaceId:
+          type: string
+          description: Limit search to specific workspace
+        tier:
+          type: string
+          enum: [workspace, hybrid, global]
+        type:
+          type: string
+          enum: [file, symbol, documentation, conversation, error, architecture]
+        limit:
+          type: integer
+          default: 10
+          minimum: 1
+          maximum: 50
+
+    QualityGateRequest:
+      type: object
+      required:
+        - projectPath
+      properties:
+        projectPath:
+          type: string
+          description: Absolute path to the project directory
+        checks:
+          type: object
+          properties:
+            runTests:
+              type: boolean
+              default: true
+            runLinting:
+              type: boolean
+              default: true
+            runTypeCheck:
+              type: boolean
+              default: true
+        config:
+          type: object
+          properties:
+            testFramework:
+              type: string
+              enum: [jest, vitest, mocha, ava, tap, auto]
+              default: auto
+            testCommand:
+              type: string
+              description: Custom test command to run
+            testTimeout:
+              type: integer
+              description: Test timeout in milliseconds
+              default: 60000
+            linter:
+              type: string
+              enum: [eslint, tslint, biome, oxlint, auto]
+              default: auto
+            lintCommand:
+              type: string
+              description: Custom lint command to run
+            typeCheckCommand:
+              type: string
+              description: Custom type check command
+              default: 'tsc --noEmit'
+            customChecks:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  command:
+                    type: string
+                  weight:
+                    type: number
+                    description: Weight in final score (0-1)
+                    default: 0.1
+
+    QualityGateResponse:
+      type: object
+      properties:
+        passed:
+          type: boolean
+          description: Whether all checks passed
+        score:
+          type: number
+          format: float
+          description: Overall quality score (0-100)
+        results:
+          type: object
+          properties:
+            testing:
+              $ref: '#/components/schemas/CheckResult'
+            linting:
+              $ref: '#/components/schemas/CheckResult'
+            typeCheck:
+              $ref: '#/components/schemas/CheckResult'
+            custom:
+              type: array
+              items:
+                $ref: '#/components/schemas/CheckResult'
+        executionTime:
+          type: integer
+          description: Total execution time in milliseconds
+
+    CheckResult:
+      type: object
+      properties:
+        passed:
+          type: boolean
+        score:
+          type: number
+          format: float
+          description: Check score (0-100)
+        summary:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    HealthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, error]
+        services:
+          type: object
+          properties:
+            mongodb:
+              type: string
+              enum: [up, down]
+            redis:
+              type: string
+              enum: [up, down]
+            qdrant:
+              type: string
+              enum: [up, down]
+            llm:
+              type: string
+              enum: [up, down]
+        timestamp:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type/category
+        message:
+          type: string
+          description: Human-readable error message
+        statusCode:
+          type: integer
+          description: HTTP status code
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (not implemented in MVP)
+
+security: []
+  # - ApiKey: [] # Uncomment when authentication is implemented

@@ -1,14 +1,14 @@
 /**
  * Prompt Orchestrator
- * 
+ *
  * Main orchestration service that chains all middleware components together.
  * Implements the complete Axon pipeline from user request to LLM response.
  */
 
 import { PromptAnalyzer } from '@axon/prompt-analyzer';
 import { ContextRetriever, ContextStorage } from '@axon/context-engine';
-import { LLMGatewayService } from '@axon/llm-gateway';
-import type { CompletionRequest, Message, MessageRole, StreamChunk } from '@axon/llm-gateway';
+import { LLMGatewayService, LLMModel } from '@axon/llm-gateway';
+import type { CompletionRequest, Message, MessageRole } from '@axon/llm-gateway';
 import type { TaskCategory } from '@axon/shared';
 import { PromptCollector } from './services/prompt-collector.js';
 import { ContextSynthesizer } from './services/context-synthesizer.js';
@@ -38,7 +38,7 @@ export interface OrchestratorConfig extends MiddlewareConfig {
 
 /**
  * Main Prompt Orchestrator
- * 
+ *
  * Pipeline stages:
  * 1. Collection - Validate and enrich request
  * 2. Analysis - Classify intent and task type
@@ -78,10 +78,7 @@ export class PromptOrchestrator {
       maxTokens: this.config.tokenBudget.total,
       enableLogging: true,
     });
-    this.postProcessor = new ResponsePostProcessor(
-      { enableLogging: true },
-      config.contextStorage
-    );
+    this.postProcessor = new ResponsePostProcessor({ enableLogging: true }, config.contextStorage);
 
     // External dependencies
     this.promptAnalyzer = config.promptAnalyzer;
@@ -91,7 +88,7 @@ export class PromptOrchestrator {
 
   /**
    * Process a prompt request (non-streaming)
-   * 
+   *
    * @param request - User prompt request
    * @returns Complete orchestration result
    */
@@ -151,11 +148,8 @@ export class PromptOrchestrator {
       // Stage 6: LLM
       const llmStart = Date.now();
       const llmRequest: CompletionRequest = {
-        messages: this.buildMessages(
-          constructedPrompt.systemPrompt,
-          constructedPrompt.userPrompt
-        ),
-        model: 'gpt-4o' as any, // Use configured model
+        messages: this.buildMessages(constructedPrompt.systemPrompt, constructedPrompt.userPrompt),
+        model: LLMModel.GPT_4O,
         temperature: 0.7,
         maxTokens: this.config.tokenBudget.responseReserve,
       };
@@ -204,7 +198,7 @@ export class PromptOrchestrator {
 
   /**
    * Process a prompt request with streaming
-   * 
+   *
    * @param request - User prompt request
    * @yields Streaming chunks as pipeline progresses
    */
@@ -268,11 +262,8 @@ export class PromptOrchestrator {
       yield { type: 'llm-start', data: null, timestamp: new Date() };
 
       const llmRequest: CompletionRequest = {
-        messages: this.buildMessages(
-          constructedPrompt.systemPrompt,
-          constructedPrompt.userPrompt
-        ),
-        model: 'gpt-4o' as any,
+        messages: this.buildMessages(constructedPrompt.systemPrompt, constructedPrompt.userPrompt),
+        model: LLMModel.GPT_4O,
         temperature: 0.7,
         maxTokens: this.config.tokenBudget.responseReserve,
         stream: true,
@@ -327,7 +318,7 @@ export class PromptOrchestrator {
 
   /**
    * Build messages array for LLM
-   * 
+   *
    * @param systemPrompt - System prompt
    * @param userPrompt - User prompt
    * @returns Messages array
@@ -347,7 +338,7 @@ export class PromptOrchestrator {
 
   /**
    * Handle orchestration errors
-   * 
+   *
    * @param error - Error object
    * @param request - Original request
    */
@@ -362,7 +353,7 @@ export class PromptOrchestrator {
 
   /**
    * Log orchestration metrics
-   * 
+   *
    * @param metrics - Orchestration metrics
    */
   private logOrchestration(metrics: {
@@ -373,16 +364,16 @@ export class PromptOrchestrator {
     contextSections: number;
     qualityScore: number;
   }): void {
-    console.log('[PromptOrchestrator]', {
+    // Use console.error for orchestration logs (allowed by ESLint)
+    console.error('[PromptOrchestrator]', {
       ...metrics,
-      avgLatencyPerStage:
-        metrics.totalLatencyMs / Object.keys(metrics.latencyBreakdown).length,
+      avgLatencyPerStage: metrics.totalLatencyMs / Object.keys(metrics.latencyBreakdown).length,
     });
   }
 
   /**
    * Create default token budget
-   * 
+   *
    * @returns Default token budget
    */
   private createDefaultTokenBudget(): TokenBudget {

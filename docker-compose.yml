@@ -1,0 +1,174 @@
+# Axon Docker Compose Configuration
+# For local development and testing
+
+version: '3.8'
+
+services:
+  # ==============================================
+  # API Gateway
+  # ==============================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: axon-api:latest
+    container_name: axon-api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      # Server
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      HOST: 0.0.0.0
+
+      # MongoDB
+      MONGODB_URI: mongodb://mongodb:27017/axon
+      MONGODB_MAX_POOL_SIZE: 10
+      MONGODB_MIN_POOL_SIZE: 2
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_KEY_PREFIX: 'axon:'
+
+      # Qdrant
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: axon_contexts
+
+      # LLM
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Please set OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4}
+      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-4096}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE:-0.7}
+
+      # Security
+      JWT_SECRET: ${JWT_SECRET:-development-jwt-secret-change-in-production}
+
+      # Rate Limiting
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: json
+
+      # CORS
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+
+      # Context Engine
+      CONTEXT_MAX_RESULTS: 10
+      CONTEXT_SIMILARITY_THRESHOLD: 0.7
+      CONTEXT_TOKEN_BUDGET: 8000
+
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - axon-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/v1/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==============================================
+  # MongoDB - Document Database
+  # ==============================================
+  mongodb:
+    image: mongo:6
+    container_name: axon-mongodb
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_DATABASE: axon
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - axon-network
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    command: mongod --quiet --logpath /dev/null
+
+  # ==============================================
+  # Redis - Cache and Job Queue
+  # ==============================================
+  redis:
+    image: redis:7-alpine
+    container_name: axon-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - axon-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==============================================
+  # Qdrant - Vector Database
+  # ==============================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: axon-qdrant
+    restart: unless-stopped
+    ports:
+      - '6333:6333' # HTTP API
+      - '6334:6334' # gRPC API
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - axon-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6333/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+
+# ==============================================
+# Volumes
+# ==============================================
+volumes:
+  mongodb-data:
+    driver: local
+  mongodb-config:
+    driver: local
+  redis-data:
+    driver: local
+  qdrant-data:
+    driver: local
+
+# ==============================================
+# Networks
+# ==============================================
+networks:
+  axon-network:
+    driver: bridge
